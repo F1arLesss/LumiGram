@@ -5,6 +5,7 @@
 //
 // Copyright @Radolyn, 2026
 #include "ayu/ayu_lang.h"
+#include "ayu/ayu_lang_data.h"
 
 #include "qjsondocument.h"
 #include "core/application.h"
@@ -38,8 +39,54 @@ AyuLanguage *AyuLanguage::instance = nullptr;
 AyuLanguage::AyuLanguage() = default;
 
 void AyuLanguage::init() {
-	if (!instance) instance = new AyuLanguage;
-	instance->loadCachedLanguage();
+	if (!instance) {
+		instance = new AyuLanguage;
+	}
+
+	const auto applyCurrent = [] {
+		const auto id = Lang::GetInstance().id();
+		const auto baseId = Lang::GetInstance().baseId();
+		instance->updateLanguage(id, baseId);
+	};
+	applyCurrent();
+
+	Lang::GetInstance().idChanges(
+	) | rpl::start_with_next([=](const QString &id) {
+		instance->updateLanguage(id, Lang::GetInstance().baseId());
+	}, instance->_lifetime);
+}
+
+void AyuLanguage::updateLanguage(const QString &id, const QString &baseId) {
+	const auto isRussian = id.startsWith(u"ru"_q, Qt::CaseInsensitive)
+		|| baseId.startsWith(u"ru"_q, Qt::CaseInsensitive);
+
+	if (isRussian) {
+		applyRussian();
+	} else {
+		resetToEnglish();
+		if (!id.isEmpty() && !id.startsWith(u"en"_q, Qt::CaseInsensitive)) {
+			loadCachedLanguage();
+		}
+	}
+}
+
+void AyuLanguage::applyRussian() {
+	LOG(("Applying built-in Russian language for AyuGram"));
+	for (const auto &entry : AyuLangData::kRussianTranslations) {
+		Lang::GetInstance().resetValue(entry.key);
+		Lang::GetInstance().applyValue(entry.key, entry.value);
+	}
+	Lang::GetInstance().updatePluralRules();
+	Lang::GetInstance().notifyUpdated();
+}
+
+void AyuLanguage::resetToEnglish() {
+	LOG(("Resetting AyuGram language to default English"));
+	for (const auto key : AyuLangData::kAllKeys) {
+		Lang::GetInstance().resetValue(key);
+	}
+	Lang::GetInstance().updatePluralRules();
+	Lang::GetInstance().notifyUpdated();
 }
 
 AyuLanguage *AyuLanguage::currentInstance() {
@@ -210,4 +257,5 @@ void AyuLanguage::applyLanguageJson(QJsonDocument doc) {
 		Lang::GetInstance().applyValue(key.toUtf8(), val.toUtf8());
 	}
 	Lang::GetInstance().updatePluralRules();
+	Lang::GetInstance().notifyUpdated();
 }

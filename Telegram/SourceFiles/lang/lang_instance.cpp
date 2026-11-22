@@ -759,6 +759,14 @@ void Instance::updatePluralRules() {
 	UpdatePluralRules(_pluralId);
 }
 
+void Instance::notifyUpdated() {
+	if (!_derived) {
+		_updated.fire({});
+	} else {
+		_derived->_updated.fire({});
+	}
+}
+
 void Instance::resetValue(const QByteArray &key) {
 	_nonDefaultValues.erase(key);
 

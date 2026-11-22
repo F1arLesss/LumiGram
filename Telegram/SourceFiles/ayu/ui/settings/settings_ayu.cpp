@@ -700,7 +700,7 @@ const auto kMeta = BuildHelper({
 } // namespace
 
 rpl::producer<QString> AyuGhost::title() {
-	return rpl::single(QString("AyuGram"));
+	return tr::ayu_CategoryGhostMode();
 }
 
 AyuGhost::AyuGhost(

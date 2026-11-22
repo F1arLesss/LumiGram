@@ -6,6 +6,8 @@
 // Copyright @Radolyn, 2026
 #pragma once
 
+#include "rpl/lifetime.h"
+
 #include <QtNetwork/QNetworkReply>
 #include <QtXml/QDomDocument>
 
@@ -18,6 +20,10 @@ public:
 	static AyuLanguage *currentInstance();
 	static void init();
 	static AyuLanguage *instance;
+
+	void updateLanguage(const QString &id, const QString &baseId);
+	void applyRussian();
+	void resetToEnglish();
 
 	void fetchLanguage(const QString &id, const QString &baseId);
 	void applyLanguageJson(QJsonDocument doc);
@@ -39,4 +45,6 @@ private:
 	QNetworkReply *_chkReply = nullptr;
 	bool needFallback = false;
 	QString _currentLangId;
+	rpl::lifetime _lifetime;
+
 };
