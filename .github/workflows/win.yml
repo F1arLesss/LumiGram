@@ -54,6 +54,11 @@ jobs:
         arch: x64
         toolset: '14.44'
 
+    - name: Install NASM
+      run: |
+        choco install nasm -y
+        echo "C:\Program Files\NASM" >> %GITHUB_PATH%
+
     - name: Prepare cache key
       shell: bash
       run: |
@@ -152,11 +157,14 @@ jobs:
         New-Item -ItemType Directory -Force -Path "$pkgDir\modules\x64\d3d" | Out-Null
         
         # Check output exe name (LumiGram.exe or Telegram.exe or AyuGram.exe)
-        $exe = Get-ChildItem "TBuild\LumiGram\out\*.exe" | Where-Object { $_.Name -like "*Gram.exe" } | Select-Object -First 1
+        $exe = Get-ChildItem "TBuild\LumiGram\out" -Filter "*.exe" -Recurse | Where-Object { $_.Name -like "*Gram.exe" } | Select-Object -First 1
         if ($exe) {
             Copy-Item $exe.FullName "$pkgDir\LumiGram.exe"
+        } else {
+            Write-Error "No *Gram.exe found in TBuild\LumiGram\out!"
+            exit 1
         }
-        $updater = Get-ChildItem "TBuild\LumiGram\out\Updater.exe" -ErrorAction SilentlyContinue
+        $updater = Get-ChildItem "TBuild\LumiGram\out" -Filter "Updater.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($updater) {
             Copy-Item $updater.FullName "$pkgDir\Updater.exe"
         }
