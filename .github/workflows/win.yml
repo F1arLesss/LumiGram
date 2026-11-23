@@ -1,0 +1,185 @@
+name: Windows x64 Build
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: cmd
+    steps:
+    - name: Free disk space
+      shell: powershell
+      run: |
+        "Pre-clean free bytes: " + (Get-PSDrive C).Free
+        Remove-Item -Recurse -Force "C:\ProgramData\Android" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "C:\Program Files\Android" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "C:\Program Files (x86)\Android" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Local\Android" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "C:\ProgramData\DockerDesktop" -ErrorAction SilentlyContinue
+        "Post-clean free bytes: " + (Get-PSDrive C).Free
+
+    - name: Prepare directories
+      run: |
+        mkdir %GITHUB_WORKSPACE%\TBuild\Libraries\win64
+        mkdir %GITHUB_WORKSPACE%\TBuild\ThirdParty
+
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        path: TBuild\LumiGram
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - uses: dtolnay/rust-toolchain@stable
+
+    - uses: Eden-CI/msvc-dev-cmd@master
+      name: Setup MSVC
+      with:
+        arch: x64
+        toolset: '14.44'
+
+    - name: Prepare cache key
+      shell: bash
+      run: |
+        PREPARE_HASH=$(sha256sum TBuild/LumiGram/Telegram/build/prepare/prepare.py | awk '{ print $1 }')
+        echo "CACHE_KEY=$PREPARE_HASH" >> $GITHUB_ENV
+
+    - name: Restore ThirdParty cache
+      id: cache-thirdparty
+      uses: actions/cache/restore@v4
+      with:
+        path: TBuild\ThirdParty
+        key: thirdparty-win64-rel-${{ env.CACHE_KEY }}
+        restore-keys: thirdparty-win64-rel-
+
+    - name: Restore Libraries cache
+      id: cache-libs
+      uses: actions/cache/restore@v4
+      with:
+        path: TBuild\Libraries
+        key: libs-win64-rel-${{ env.CACHE_KEY }}
+        restore-keys: libs-win64-rel-
+
+    - name: Restore Qt cache
+      id: cache-qt
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          TBuild\Libraries\qt*
+          TBuild\Libraries\Qt*
+        key: qt-win64-rel-${{ env.CACHE_KEY }}
+        restore-keys: qt-win64-rel-
+
+    - name: Prepare Libraries
+      id: prepare
+      run: |
+        cd %GITHUB_WORKSPACE%\TBuild\LumiGram\Telegram\build\prepare
+        python prepare.py silent
+
+    - name: Save ThirdParty cache
+      if: ${{ steps.prepare.outcome == 'success' }}
+      uses: actions/cache/save@v4
+      with:
+        path: TBuild\ThirdParty
+        key: thirdparty-win64-rel-${{ env.CACHE_KEY }}
+
+    - name: Save Libraries cache
+      if: ${{ steps.prepare.outcome == 'success' }}
+      uses: actions/cache/save@v4
+      with:
+        path: TBuild\Libraries
+        key: libs-win64-rel-${{ env.CACHE_KEY }}
+
+    - name: Save Qt cache
+      if: ${{ steps.prepare.outcome == 'success' }}
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          TBuild\Libraries\qt*
+          TBuild\Libraries\Qt*
+        key: qt-win64-rel-${{ env.CACHE_KEY }}
+
+    - name: Configure
+      run: |
+        cd %GITHUB_WORKSPACE%\TBuild\LumiGram\Telegram
+        call configure.bat -G Ninja -D TDESKTOP_API_ID=611335 -D TDESKTOP_API_HASH=d524b414d21f4d37f08684c1df41ac9c -D CMAKE_BUILD_TYPE=Release -D CMAKE_DISABLE_PRECOMPILE_HEADERS=ON -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON -D "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug>:ProgramDatabase>"
+
+    - name: Grow pagefile for the final link
+      shell: pwsh
+      run: |
+        $cs = Get-CimInstance Win32_ComputerSystem
+        if ($cs.AutomaticManagedPagefile) { Set-CimInstance -InputObject $cs -Property @{AutomaticManagedPagefile=$false} }
+        $pf = Get-CimInstance Win32_PageFileSetting | Select-Object -First 1
+        Set-CimInstance -InputObject $pf -Property @{InitialSize=8192; MaximumSize=24576}
+        Get-CimInstance Win32_PageFileSetting | Format-List Name,InitialSize,MaximumSize
+
+    - name: Build
+      run: |
+        cd %GITHUB_WORKSPACE%\TBuild\LumiGram\Telegram
+        cmake --build ..\out --parallel 2 > ..\build_output.txt 2>&1
+        set EXITCODE=%ERRORLEVEL%
+        powershell -NoProfile -Command "Get-Content ..\build_output.txt -Tail 120"
+        if not %EXITCODE%==0 exit /b %EXITCODE%
+
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: TBuild\LumiGram\build_output.txt
+        retention-days: 7
+
+    - name: Package Portable Zip
+      shell: pwsh
+      run: |
+        $pkgDir = "TBuild\LumiGram\portable_package"
+        New-Item -ItemType Directory -Force -Path "$pkgDir\modules\x64\d3d" | Out-Null
+        
+        # Check output exe name (LumiGram.exe or Telegram.exe or AyuGram.exe)
+        $exe = Get-ChildItem "TBuild\LumiGram\out\*.exe" | Where-Object { $_.Name -like "*Gram.exe" } | Select-Object -First 1
+        if ($exe) {
+            Copy-Item $exe.FullName "$pkgDir\LumiGram.exe"
+        }
+        $updater = Get-ChildItem "TBuild\LumiGram\out\Updater.exe" -ErrorAction SilentlyContinue
+        if ($updater) {
+            Copy-Item $updater.FullName "$pkgDir\Updater.exe"
+        }
+        
+        # d3dcompiler
+        $d3d = Get-ChildItem "TBuild\Libraries" -Filter "d3dcompiler_47.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($d3d) {
+            Copy-Item $d3d.FullName "$pkgDir\modules\x64\d3d\d3dcompiler_47.dll"
+        }
+
+        # Create zip
+        Compress-Archive -Path "$pkgDir\*" -DestinationPath "TBuild\LumiGram\LumiGram-Windows-Portable.zip" -Force
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: LumiGram-Windows-Portable
+        path: TBuild\LumiGram\LumiGram-Windows-Portable.zip
+        retention-days: 7
+
+    - name: Update GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        gh release upload v7.2.9-portable TBuild/LumiGram/LumiGram-Windows-Portable.zip --clobber || true
