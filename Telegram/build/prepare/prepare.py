@@ -85,7 +85,6 @@ if not os.path.isdir(os.path.join(thirdPartyDir, keysLoc)):
 pathPrefixes = [
     'ThirdParty\\msys64\\ucrt64\\bin',
     'ThirdParty\\msys64\\mingw64\\bin',
-    'ThirdParty\\msys64\\usr\\bin',
     'ThirdParty\\jom',
     'ThirdParty\\gyp',
 ] if win else [
@@ -485,6 +484,7 @@ win:
         mingw-w64-ucrt-x86_64-nasm ^
         mingw-w64-ucrt-x86_64-perl ^
         mingw-w64-ucrt-x86_64-pkgconf
+    if exist msys64\\usr\\bin\\link.exe del /f /q msys64\\usr\\bin\\link.exe
 """, 'ThirdParty')
 
 stage('python', """

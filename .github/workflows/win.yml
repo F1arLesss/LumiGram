@@ -54,9 +54,9 @@ jobs:
         arch: x64
         toolset: '14.44'
 
-    - name: Install NASM
+    - name: Install NASM and Ninja
       run: |
-        choco install nasm -y
+        choco install nasm ninja -y
         echo "C:\Program Files\NASM" >> %GITHUB_PATH%
 
     - name: Prepare cache key
@@ -94,6 +94,7 @@ jobs:
     - name: Prepare Libraries
       id: prepare
       run: |
+        if exist %GITHUB_WORKSPACE%\TBuild\ThirdParty\msys64\usr\bin\link.exe del /f /q %GITHUB_WORKSPACE%\TBuild\ThirdParty\msys64\usr\bin\link.exe
         cd %GITHUB_WORKSPACE%\TBuild\LumiGram\Telegram\build\prepare
         python prepare.py silent
 
