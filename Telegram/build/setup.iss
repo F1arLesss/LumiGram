@@ -1,8 +1,8 @@
-#define MyAppShortName "AyuGram"
-#define MyAppName "AyuGram Desktop"
-#define MyAppPublisher "Radolyn Labs"
-#define MyAppURL "https://github.com/AyuGram"
-#define MyAppExeName "AyuGram.exe"
+#define MyAppShortName "LumiGram"
+#define MyAppName "LumiGram Desktop"
+#define MyAppPublisher "LumiGram"
+#define MyAppURL "https://github.com/F1arLesss/LumiGram"
+#define MyAppExeName "LumiGram.exe"
 #define MyAppId "53F49750-6209-4FBF-9CA8-7A333C87D666"
 #define CurrentYear GetDateTimeString('yyyy','','')
 

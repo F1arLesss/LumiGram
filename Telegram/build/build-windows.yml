@@ -1,0 +1,52 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - dev
+
+jobs:
+  build:
+    name: Build LumiGram Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build LumiGram
+        shell: pwsh
+        run: |
+          Write-Host "Configuring and building LumiGram..."
+          # Configure build here or invoke Telegram/build/prepare
+          Write-Host "Build pipeline ready."
+
+      - name: Package Portable
+        shell: pwsh
+        run: |
+          $outDir = "out/LumiGram_Portable"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          Write-Host "Packaging portable build..."
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LumiGram-Windows-Portable
+          path: out/LumiGram_Portable/
+          retention-days: 7

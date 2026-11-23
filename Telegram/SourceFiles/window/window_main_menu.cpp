@@ -392,8 +392,8 @@ MainMenu::MainMenu(
 	parentResized();
 
 	_telegram->setMarkedText(tr::link(
-		u"AyuGram Desktop"_q,
-		u"https://ayugram.one"_q));
+		u"LumiGram Desktop"_q,
+		u"https://github.com/F1arLesss/LumiGram"_q));
 	_telegram->setLinksTrusted();
 	// The canary version is too long for the "Version {version}" form.
 	_version->setMarkedText(
